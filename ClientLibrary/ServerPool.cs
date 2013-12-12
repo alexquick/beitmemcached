@@ -34,7 +34,7 @@ namespace BeIT.MemCached {
 	/// This class contains the server-selection logic, and contains methods for executing a block of code on 
 	/// a socket from the server corresponding to a given key.
 	/// </summary>
-	internal class ServerPool {
+	public class ServerPool {
 		private static LogAdapter logger = LogAdapter.GetLogger(typeof(ServerPool));
 
 		//Expose the socket pools.

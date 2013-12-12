@@ -24,7 +24,7 @@
 using System;
 
 namespace BeIT.MemCached {
-	internal class LogAdapter {
+    public class LogAdapter {
 		public static LogAdapter GetLogger(Type type) {
 			return new LogAdapter(type);
 		}

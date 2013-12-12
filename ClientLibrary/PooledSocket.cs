@@ -33,7 +33,7 @@ namespace BeIT.MemCached {
 	/// It contains a buffered stream for communication, and methods for sending and retrieving
 	/// data from the memcached server, as well as general memcached error checking.
 	/// </summary>
-	internal class PooledSocket : IDisposable {
+	public class PooledSocket : IDisposable {
 		private static LogAdapter logger = LogAdapter.GetLogger(typeof(PooledSocket));
 		
 		private SocketPool socketPool;

@@ -33,7 +33,7 @@ namespace BeIT.MemCached {
 	/// acquiring or returning PooledSockets.
 	/// </summary>
 	[DebuggerDisplay("[ Host: {Host} ]")]
-	internal class SocketPool {
+	public class SocketPool {
 		private static LogAdapter logger = LogAdapter.GetLogger(typeof(SocketPool));
 
 		/// <summary>
