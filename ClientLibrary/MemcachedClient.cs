@@ -64,6 +64,15 @@ namespace BeIT.MemCached{
 		}
 
 		/// <summary>
+		/// Resets static state. Try not to use this in production.
+		/// </summary>
+		public static void Reset()
+		{
+			defaultInstance = null;
+			instances = new Dictionary<string, MemcachedClient>();
+		}
+
+		/// <summary>
 		/// Static method for getting the default instance named "default".
 		/// </summary>
 		private static MemcachedClient defaultInstance = null;
