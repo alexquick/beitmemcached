@@ -29,12 +29,13 @@ namespace BeITMemcached.ClientLibrary.Binary
 		protected override bool store(string command, string[] keys, bool keyIsChecked, object[] values, uint[] hashes,
 			int expiry)
 		{
-			EnsureAlignment(keys, values, hashes);
-			bool success = true;
-			for (int i = 0; i < keys.Length; i++) {
-				success &= store(command, keys[i], keyIsChecked, values[i], hashes[i], expiry);
+			BinaryResponse[] responses = storeBinary(command, keys, keyIsChecked, values, hashes, expiry, null);
+			foreach (var response in responses) {
+				if (response!=null && response.ResponseCode != ErrorCode.None) {
+					return false;
+				}
 			}
-			return success;
+			return true;
 		}
 
 		protected override bool store(string command, string[] keys, bool keyIsChecked, object[] values, uint[] hashes)
@@ -52,6 +53,22 @@ namespace BeITMemcached.ClientLibrary.Binary
 			throw new NotImplementedException();
 		}
 
+		private BinaryResponse[] storeBinary(string command, string[] keys, bool keyIsChecked, object[] values, uint[] hashes, int expiry,
+			ulong[] unique)
+		{
+			if (!keyIsChecked) {
+				foreach (var key in keys) {
+					checkKey(key);
+				}
+			}
+
+			var opcode = Opcode.Parse(command);
+			var requestTemplate = new BinaryRequest() {
+				Opcode = opcode,
+			};
+			return executeBulk(requestTemplate, keys, hashes, values);
+		}
+
 		private BinaryResponse store(string command, string key, bool keyIsChecked, object value, uint hash, int expiry,
 			ulong unique)
 		{
@@ -66,51 +83,31 @@ namespace BeITMemcached.ClientLibrary.Binary
 				//Serialize object efficiently, store the datatype marker in the flags property.
 				try {
 					bytes = Serializer.Serialize(value, out type, CompressionThreshold);
-				}
-				catch (Exception e) {
+				} catch (Exception e) {
 					//If serialization fails, return false;
 
 					logger.Error("Error serializing object for key '" + key + "'.", e);
 					return null;
 				}
 				byte[] extras = new byte[8];
-				Array.Copy(BinaryMessage.NetworkOrder(BitConverter.GetBytes((int) type)), 0, extras, 0, 4);
+				Array.Copy(BinaryMessage.NetworkOrder(BitConverter.GetBytes((int)type)), 0, extras, 0, 4);
 				Array.Copy(BinaryMessage.NetworkOrder(BitConverter.GetBytes(expiry)), 0, extras, 4, 4);
 				var request = new BinaryRequest() {
 					Extras = extras,
 					Value = bytes,
 					KeyAsString = keyPrefix + key
 				};
-				//Create commandline
-				switch (command) {
-					case "set":
-						request.Opcode = Opcodes.Set;
-						break;
-					case "add":
-						request.Opcode = Opcodes.Add;
-						break;
-					case "replace":
-						request.Opcode = Opcodes.Replace;
-						break;
-					case "append":
-						extras = new byte[] {};
-						request.Opcode = Opcodes.Append;
-						break;
-					case "prepend":
-						extras = new byte[] {};
-						request.Opcode = Opcodes.Prepend;
-						break;
-					case "cas":
-						request.Opcode = Opcodes.Set;
-						request.CAS = unique;
-						break;
+				request.Opcode = Opcode.Parse(command);
+				if (command.ToLower().StartsWith("set")) {
+					request.CAS = unique;
 				}
-
+				if (!Opcode.AcceptsExtras(request.Opcode)) {
+					request.Extras = new byte[0];
+				}
 				//Write commandline and serialized object.
 				socket.Write(request);
 				return socket.ReadBinaryResponse();
 			});
-
 		}
 
 		protected override object get(string command, string key, bool keyIsChecked, uint hash, out ulong unique)
@@ -132,6 +129,7 @@ namespace BeITMemcached.ClientLibrary.Binary
 
 		protected override object[] get(string command, string[] keys, bool keysAreChecked, uint[] hashes, out ulong[] uniques)
 		{
+			EnsureAlignment(keys, hashes);
 			//Check keys.
 			if (keys != null && !keysAreChecked) {
 				foreach (var key in keys) {
@@ -142,10 +140,10 @@ namespace BeITMemcached.ClientLibrary.Binary
 			object[] returnValues = new object[keys.Length];
 			uniques = new ulong[keys.Length];
 			var responses = executeBulk(
-				new BinaryRequest() {Opcode = Opcodes.GetQ},
 				new BinaryRequest() {Opcode = Opcodes.Get},
 				keys,
-				hashes);
+				hashes,
+				null);
 			for (int i = 0; i < responses.Length; i++) {
 				var response = responses[i];
 				if (response == null) {
@@ -157,11 +155,10 @@ namespace BeITMemcached.ClientLibrary.Binary
 			return returnValues;
 		}
 
-		private BinaryResponse[] executeBulk(BinaryRequest quietTemplate, BinaryRequest finalRequestTemplate,
-			string[] keys, uint[] hashes)
+		private BinaryResponse[] executeBulk(BinaryRequest template,
+			string[] keys, uint[] hashes, object[] values)
 		{
-			EnsureAlignment(keys, hashes);
-
+			Opcodes quietOpcode = Opcode.ToQuiet(template.Opcode);
 			//Group the keys/hashes by server(pool)
 			Dictionary<SocketPool, Dictionary<string, List<int>>> dict =
 				new Dictionary<SocketPool, Dictionary<string, List<int>>>();
@@ -190,8 +187,30 @@ namespace BeITMemcached.ClientLibrary.Binary
 					UInt32 sequence = socket.NextSequence;
 					UInt32 minSequence = sequence;
 					foreach (var value in kv.Value) {
-						BinaryRequest req;
-						req = i++ + 1 < total ? quietTemplate.Clone() : finalRequestTemplate;
+						BinaryRequest req = template.Clone();
+						if (i++ < total - 1) {
+							req.Opcode = quietOpcode;
+						}
+						if (values != null) {
+							byte[] bytes = new byte[0];
+							SerializedType type = SerializedType.Bool;
+							var dataIndex = value.Value[value.Value.Count - 1];
+							var data = values[dataIndex];
+							//Serialize object efficiently, store the datatype marker in the flags property.
+							try {
+								bytes = Serializer.Serialize(data, out type, CompressionThreshold);
+							}
+							catch (Exception e) {
+								//If serialization fails, return false;
+
+								logger.Error("Error serializing object for key '" + value.Key + "'.", e);
+							}
+							byte[] extras = new byte[8];
+							Array.Copy(BinaryMessage.NetworkOrder(BitConverter.GetBytes((int) type)), 0, extras, 0, 4);
+							Array.Copy(BinaryMessage.NetworkOrder(BitConverter.GetBytes((int) 0)), 0, extras, 4, 4); // TODO: handle expiry
+							req.Value = bytes;
+							req.Extras = extras;
+						}
 						req.KeyAsString = value.Key;
 						req.Opaque = sequence;
 						opaqueToKey[sequence] = value.Key;

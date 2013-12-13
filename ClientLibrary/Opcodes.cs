@@ -1,10 +1,39 @@
-﻿namespace BeITMemcached.ClientLibrary
+﻿using System;
+
+namespace BeITMemcached.ClientLibrary
 {
 	public static class Opcode
 	{
 		public static string Name(Opcodes opcode)
 		{
 			return opcode.ToString().ToLower();
+		}
+
+		public static Opcodes ToQuiet(Opcodes opcode)
+		{
+			if (Name(opcode).EndsWith("Q")) {
+				return opcode;
+			}
+			return Parse(Name(opcode) + "Q");
+		}
+
+		public static Opcodes Parse(string command)
+		{
+			return (Opcodes) Enum.Parse(typeof (Opcodes), command, true);
+		}
+
+		public static bool AcceptsExtras(Opcodes opcode)
+		{
+			//TODO: make this comprehensive
+			switch (opcode) {
+				case Opcodes.Prepend:
+				case Opcodes.Append:
+				case Opcodes.AppendQ:
+				case Opcodes.PrependQ:
+					return false;
+				default:
+					return true;
+			}
 		}
 	}
 	public enum Opcodes
