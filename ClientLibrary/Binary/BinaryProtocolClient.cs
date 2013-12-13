@@ -121,7 +121,18 @@ namespace BeITMemcached.ClientLibrary.Binary
 
 		protected override bool delete(string key, bool keyIsChecked, uint hash, int time)
 		{
-			throw new NotImplementedException();
+			if (!keyIsChecked) {
+				checkKey(key);
+			}
+			BinaryRequest req = new BinaryRequest() {
+				Opcode = Opcodes.Delete,
+				KeyAsString = KeyPrefix + key,
+			};
+			var response = dispatchAndExpectResponse(hash, req);
+			if (response == null || response.ResponseCode != ErrorCode.None) {
+				return false;
+			}
+			return true;
 		}
 
 		protected override ulong? getCounter(string key, bool keyIsChecked, uint hash)
