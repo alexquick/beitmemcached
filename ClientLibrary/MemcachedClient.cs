@@ -28,6 +28,7 @@ using System.Configuration;
 using System.Globalization;
 using System.Text;
 using BeITMemcached.ClientLibrary;
+using BeITMemcached.ClientLibrary.Binary;
 
 namespace BeIT.MemCached{
 	/// <summary>
@@ -53,6 +54,14 @@ namespace BeIT.MemCached{
 			}
 			instances[name] = new TextProtocolClient(name, servers);
 		}
+
+		public static void SetupBinary(string name, string[] servers) {
+			if (instances.ContainsKey(name)) {
+				throw new ConfigurationErrorsException("Trying to configure MemcachedClient instance \"" + name + "\" twice.");
+			}
+			instances[name] = new BinaryProtocolClient(name, servers);
+		}
+
 
 		/// <summary>
 		/// Static method which checks if a given named MemcachedClient instance exists.

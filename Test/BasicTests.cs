@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using BeIT.MemCached;
 using NUnit.Framework;
+using NUnit.Framework.Constraints;
 
 namespace Test
 {
@@ -42,9 +41,15 @@ namespace Test
 			MemcachedClient.Reset();
 			MemcachedClient.Setup("default", new string[] {"localhost:11211"});
 			MemcachedClient.GetInstance("default").KeyPrefix = Guid.NewGuid().ToString();
+			MemcachedClient.SetupBinary("default-binary", new string[] {"localhost:11211"});
+			MemcachedClient.GetInstance("default-binary").KeyPrefix = Guid.NewGuid().ToString();
+
+			Assert.AreEqual(MemcachedClient.ProtocolType.Text, MemcachedClient.GetInstance("default").Protocol);
+			Assert.AreEqual(MemcachedClient.ProtocolType.Binary, MemcachedClient.GetInstance("default-binary").Protocol);
 			return new List<TestCaseData>() {
-				new TestCaseData(MemcachedClient.GetInstance("default")).SetName("Text Client")
+				new TestCaseData(MemcachedClient.GetInstance("default")).SetName("Text Client"),
+				new TestCaseData(MemcachedClient.GetInstance("default-binary")).SetName("Binary Client")
 			};
-		} 
+		}
 	}
 }

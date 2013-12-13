@@ -31,7 +31,7 @@ namespace BeITMemcached.ClientLibrary.Binary
 
 		protected override CasResult store(string key, bool keyIsChecked, object value, uint hash, int expiry, ulong unique)
 		{
-    		throw new NotImplementedException();
+			throw new NotImplementedException();
 		}
 
 		private BinaryResponse store(string command, string key, bool keyIsChecked, object value, uint hash, int expiry, ulong unique)
@@ -54,8 +54,8 @@ namespace BeITMemcached.ClientLibrary.Binary
 					return null;
 				}
 				byte[] extras = new byte[8];
-                Array.Copy(BitConverter.GetBytes((int)type),0, extras, 0, 4); 
-                Array.Copy(BitConverter.GetBytes(expiry),0, extras, 4, 4);
+				Array.Copy(BinaryMessage.NetworkOrder(BitConverter.GetBytes((int) type)), 0, extras, 0, 4);
+				Array.Copy(BinaryMessage.NetworkOrder(BitConverter.GetBytes(expiry)), 0, extras, 4, 4);
 				var request = new BinaryRequest() {
 					Extras = extras,
 					Value = bytes,
@@ -67,14 +67,14 @@ namespace BeITMemcached.ClientLibrary.Binary
 						request.Opcode = Opcodes.Set;
 						break;
 					case "add":
-                        request.Opcode = Opcodes.Add;
-                        break;
+						request.Opcode = Opcodes.Add;
+						break;
 					case "replace":
 						request.Opcode = Opcodes.Replace;
 						break;
 					case "append":
 						extras = new byte[] {};
-                        request.Opcode = Opcodes.Append;
+						request.Opcode = Opcodes.Append;
 						break;
 					case "prepend":
 						extras = new byte[] {};
@@ -87,7 +87,7 @@ namespace BeITMemcached.ClientLibrary.Binary
 				}
 
 				//Write commandline and serialized object.
-                socket.Write(request);
+				socket.Write(request);
 				return socket.ReadBinaryResponse();
 			});
 
@@ -100,16 +100,16 @@ namespace BeITMemcached.ClientLibrary.Binary
 			}
 			BinaryRequest req = new BinaryRequest() {
 				Opcode = Opcodes.Get,
-				KeyAsString = key,
+				KeyAsString = KeyPrefix + key,
 			};
 			var response = dispatchAndExpectResponse(hash, req);
 			unique = 0;
-			if (response != null || response.ResponseCode != ErrorCode.None) {
+			if (response == null || response.ResponseCode != ErrorCode.None) {
 				return null;
 			}
-            SerializedType type = SerializedType.ByteArray;
+			SerializedType type = SerializedType.ByteArray;
 			if (response.Extras.Length >= 4) {
-				type = (SerializedType) BitConverter.ToInt16(response.Extras, 2);
+				type = (SerializedType) BinaryMessage.NetworkUInt16(response.Extras, 2);
 			}
 			return Deserialize(key, type, response.Value);
 		}
