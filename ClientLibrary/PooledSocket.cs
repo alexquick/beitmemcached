@@ -27,6 +27,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using BeITMemcached.ClientLibrary.Binary;
+using System.Collections.Generic;
 
 namespace BeIT.MemCached {
 	/// <summary>
@@ -41,6 +42,12 @@ namespace BeIT.MemCached {
 		private Socket socket;
 		private Stream stream;
 		public readonly DateTime Created;
+		private UInt32 sequence = 1;
+
+		public UInt32 NextSequence
+		{
+			get { return sequence++; }
+		}
 
 		public PooledSocket(SocketPool socketPool, IPEndPoint endPoint, int sendReceiveTimeout, int connectTimeout) {
 			this.socketPool = socketPool;
@@ -89,6 +96,14 @@ namespace BeIT.MemCached {
 				try { socket.Close(); } catch (Exception e) { logger.Error("Error closing socket: " + socketPool.Host, e);}
 				socket = null;
 			}
+		}
+
+		/// <summary>
+		/// resets the sequence counter.
+		/// </summary>
+		public void ResetSequence()
+		{
+			sequence = 1;
 		}
 
 		/// <summary>
@@ -167,16 +182,34 @@ namespace BeIT.MemCached {
 
 		internal BinaryResponse ReadBinaryResponse()
 		{
-		    BinaryResponse response = new BinaryResponse();
+			BinaryResponse response = new BinaryResponse();
 			response.Read(stream);
 			switch (response.ResponseCode) {
 				case ErrorCode.InvalidArguments:
 				case ErrorCode.InvalidIncrTarget:
-                case ErrorCode.OutOfMemory:
-                case ErrorCode.ValueTooLarge:
-                    throw new MemcachedClientException("Server returned: " + response.ValueAsString);
-                default:
+				case ErrorCode.OutOfMemory:
+				case ErrorCode.ValueTooLarge:
+					throw new MemcachedClientException("Server returned: " + response.ValueAsString);
+				default:
 					return response;
+			}
+		}
+
+
+		internal List<BinaryResponse> ReadBinaryResponseBetween(uint startSequence, uint finalSequence)
+		{
+			var responses = new List<BinaryResponse>();
+			while (true) {
+				var response = ReadBinaryResponse();
+				if (response.Opaque >= startSequence) {
+					responses.Add(response);
+				}
+				if (response.Opaque == finalSequence) {
+					return responses;
+				}
+				if (response.Opaque > finalSequence) {
+					throw new InvalidOperationException("No final memcached response");
+				}
 			}
 		}
 

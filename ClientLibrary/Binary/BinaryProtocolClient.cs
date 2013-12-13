@@ -1,11 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.IO;
-using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Text;
 using BeIT.MemCached;
 
 namespace BeITMemcached.ClientLibrary.Binary
@@ -16,7 +10,10 @@ namespace BeITMemcached.ClientLibrary.Binary
 		{
 		}
 
-		public override ProtocolType Protocol { get { return ProtocolType.Binary; } }
+		public override ProtocolType Protocol
+		{
+			get { return ProtocolType.Binary; }
+		}
 
 		protected override bool store(string command, string key, bool keyIsChecked, object value, uint hash, int expiry)
 		{
@@ -34,7 +31,8 @@ namespace BeITMemcached.ClientLibrary.Binary
 			throw new NotImplementedException();
 		}
 
-		private BinaryResponse store(string command, string key, bool keyIsChecked, object value, uint hash, int expiry, ulong unique)
+		private BinaryResponse store(string command, string key, bool keyIsChecked, object value, uint hash, int expiry,
+			ulong unique)
 		{
 			if (!keyIsChecked) {
 				checkKey(key);
@@ -47,7 +45,8 @@ namespace BeITMemcached.ClientLibrary.Binary
 				//Serialize object efficiently, store the datatype marker in the flags property.
 				try {
 					bytes = Serializer.Serialize(value, out type, CompressionThreshold);
-				} catch (Exception e) {
+				}
+				catch (Exception e) {
 					//If serialization fails, return false;
 
 					logger.Error("Error serializing object for key '" + key + "'.", e);
@@ -107,16 +106,95 @@ namespace BeITMemcached.ClientLibrary.Binary
 			if (response == null || response.ResponseCode != ErrorCode.None) {
 				return null;
 			}
-			SerializedType type = SerializedType.ByteArray;
-			if (response.Extras.Length >= 4) {
-				type = (SerializedType) BinaryMessage.NetworkUInt16(response.Extras, 2);
-			}
-			return Deserialize(key, type, response.Value);
+			return Deserialize(response, key);
 		}
 
 		protected override object[] get(string command, string[] keys, bool keysAreChecked, uint[] hashes, out ulong[] uniques)
 		{
-			throw new NotImplementedException();
+			//Check keys.
+			if (keys != null && !keysAreChecked) {
+				foreach (var key in keys) {
+					checkKey(key);
+				}
+			}
+
+			object[] returnValues = new object[keys.Length];
+			uniques = new ulong[keys.Length];
+			var responses = executeBulk(
+				new BinaryRequest() {Opcode = Opcodes.GetQ},
+				new BinaryRequest() {Opcode = Opcodes.Get},
+				keys,
+				hashes);
+			for (int i = 0; i < responses.Length; i++) {
+				var response = responses[i];
+				if (response == null) {
+					continue;
+				}
+				uniques[i] = response.CAS;
+				returnValues[i] = Deserialize(response, keys[i]);
+			}
+			return returnValues;
+		}
+
+		private BinaryResponse[] executeBulk(BinaryRequest quietTemplate, BinaryRequest finalRequestTemplate,
+			string[] keys, uint[] hashes)
+		{
+			//Check arguments.
+			if (keys == null || hashes == null) {
+				throw new ArgumentException("Keys and hashes arrays must not be null.");
+			}
+			if (keys.Length != hashes.Length) {
+				throw new ArgumentException("Keys and hashes arrays must be of the same length.");
+			}
+
+			//Group the keys/hashes by server(pool)
+			Dictionary<SocketPool, Dictionary<string, List<int>>> dict =
+				new Dictionary<SocketPool, Dictionary<string, List<int>>>();
+			for (int i = 0; i < keys.Length; i++) {
+				Dictionary<string, List<int>> getsForServer;
+				SocketPool pool = serverPool.GetSocketPool(hashes[i]);
+				if (!dict.TryGetValue(pool, out getsForServer)) {
+					dict[pool] = getsForServer = new Dictionary<string, List<int>>();
+				}
+
+				List<int> positions;
+				if (!getsForServer.TryGetValue(keys[i], out positions)) {
+					getsForServer[keyPrefix + keys[i]] = positions = new List<int>();
+				}
+				positions.Add(i);
+			}
+
+			//Get the values
+			BinaryResponse[] returnValues = new BinaryResponse[keys.Length];
+			foreach (KeyValuePair<SocketPool, Dictionary<string, List<int>>> kv in dict) {
+				Dictionary<UInt32, string> opaqueToKey = new Dictionary<UInt32, string>();
+				serverPool.Execute(kv.Key, delegate(PooledSocket socket) {
+					int i = 0;
+					int total = kv.Value.Count;
+					socket.ResetSequence();
+					UInt32 sequence = socket.NextSequence;
+					UInt32 minSequence = sequence;
+					foreach (var value in kv.Value) {
+						BinaryRequest req;
+						req = i++ + 1 < total ? quietTemplate.Clone() : finalRequestTemplate;
+						req.KeyAsString = value.Key;
+						req.Opaque = sequence;
+						opaqueToKey[sequence] = value.Key;
+						sequence = socket.NextSequence;
+						socket.Write(req);
+					}
+					var responses = socket.ReadBinaryResponseBetween(minSequence, sequence - 1);
+
+					//Read values, one by one
+					foreach (var response in responses) {
+						var gottenKey = opaqueToKey[response.Opaque];
+						foreach (int position in kv.Value[gottenKey]) {
+							returnValues[position] = response;
+						}
+					}
+				});
+			}
+			return returnValues;
 		}
 
 		protected override bool delete(string key, bool keyIsChecked, uint hash, int time)
@@ -163,9 +241,19 @@ namespace BeITMemcached.ClientLibrary.Binary
 		private BinaryResponse dispatchAndExpectResponse(uint hash, BinaryRequest req)
 		{
 			return serverPool.Execute(hash, null, (socket) => {
-			    socket.Write(req);
+				socket.Write(req);
 				return socket.ReadBinaryResponse();
 			});
+		}
+
+		private object Deserialize(BinaryResponse response, String key = null)
+		{
+			key = key ?? response.KeyAsString;
+			SerializedType type = SerializedType.ByteArray;
+			if (response.Extras.Length >= 4) {
+				type = (SerializedType) BinaryMessage.NetworkUInt16(response.Extras, 2);
+			}
+			return Deserialize(key, type, response.Value);
 		}
 	}
 }

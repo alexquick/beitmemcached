@@ -126,6 +126,18 @@ namespace BeITMemcached.ClientLibrary.Binary
 			stream.Write(Value, 0, Value.Length);
 		}
 
+
+		public BinaryRequest Clone()
+		{
+			return new BinaryRequest() {
+				CAS = CAS,
+				Extras = Extras,
+				Key = Key,
+				Opaque = Opaque,
+				Opcode = Opcode,
+				Value = Value
+			};
+		}
 	}
 
 
