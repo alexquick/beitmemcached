@@ -106,7 +106,7 @@ namespace BeIT.MemCached{
 
 		#region Fields, constructors, and private methods.
 		public readonly string Name;
-	    protected readonly ServerPool serverPool;
+		protected readonly ServerPool serverPool;
 
 		/// <summary>
 		/// If you specify a key prefix, it will be appended to all keys before they are sent to the memcached server.
@@ -183,6 +183,17 @@ namespace BeIT.MemCached{
 			serverPool = new ServerPool(hosts);
 		}
 
+		public enum ProtocolType
+		{
+			Text,
+			Binary
+		}
+
+		public abstract ProtocolType Protocol
+		{
+			get;
+		}
+
 		/// <summary>
 		/// Private key hashing method that uses the modified FNV hash.
 		/// </summary>
@@ -257,6 +268,19 @@ namespace BeIT.MemCached{
 	    protected static int getUnixTime(DateTime datetime) {
 			return (int)(datetime.ToUniversalTime() - epoch).TotalSeconds;
 		}
+
+		internal object Deserialize(String key, SerializedType type, byte[] bytes)
+		{
+			try {
+				return Serializer.DeSerialize(bytes, type);
+			}
+			catch (Exception e) {
+				//If deserialization fails, return null
+				logger.Error("Error deserializing object for key '" + key + "' of type " + type + ".", e);
+				return null;
+			}
+		}
+
 		#endregion
 
 		#region Set, Add, and Replace.
@@ -335,21 +359,15 @@ namespace BeIT.MemCached{
 		public CasResult CheckAndSet(string key, object value, uint hash, DateTime expiry, ulong unique) { return store(key, false, value, this.hash(hash), getUnixTime(expiry), unique); }
 
 		//Hook for the Set, Add and Replace commands.
-		protected virtual bool store(string command, string key, bool keyIsChecked, object value, uint hash, int expiry) {
-			return store(command, key, keyIsChecked, value, hash, expiry, 0).StartsWith("STORED");
-		}
+		protected abstract bool store(string command, string key, bool keyIsChecked, object value, uint hash, int expiry);
 
 		//Hook for the Append and Prepend commands.
-		protected virtual bool store(string command, string key, bool keyIsChecked, object value, uint hash) {
-			return store(command, key, keyIsChecked, value, hash, 0, 0).StartsWith("STORED");
-		}
+		protected abstract bool store(string command, string key, bool keyIsChecked, object value, uint hash);
 
 		//Hook for the Cas command.
-	    protected abstract CasResult store(string key, bool keyIsChecked, object value, uint hash, int expiry, ulong unique);
+		protected abstract CasResult store(string key, bool keyIsChecked, object value, uint hash, int expiry, ulong unique);
 
-		//common store method.
-	    protected abstract string store(string command, string key, bool keyIsChecked, object value, uint hash, int expiry, ulong unique);
-        #endregion
+		#endregion
 
 		#region Get
 		/// <summary>
@@ -389,9 +407,6 @@ namespace BeIT.MemCached{
 		public object[] Gets(string[] keys, uint[] hashes, out ulong[] uniques) { return get("gets", keys, false, hash(hashes), out uniques); }
 
 		protected abstract object[] get(string command, string[] keys, bool keysAreChecked, uint[] hashes, out ulong[] uniques);
-
-		//Private method for reading results of the "get" command.
-		protected abstract bool readValue(PooledSocket socket, out object value, out string key, out ulong unique);
 		#endregion
 
 		#region Delete

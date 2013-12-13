@@ -57,6 +57,9 @@
     <Reference Include="System.configuration" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ClientLibrary\Binary\BinaryMessage.cs" />
+    <Compile Include="ClientLibrary\Binary\BinaryProtocolClient.cs" />
+    <Compile Include="ClientLibrary\Opcodes.cs" />
     <Compile Include="ClientLibrary\HashAlgorithms.cs" />
     <Compile Include="ClientLibrary\LogAdapter.cs" />
     <Compile Include="ClientLibrary\MemcachedClient.cs" />

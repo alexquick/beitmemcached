@@ -26,6 +26,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using BeITMemcached.ClientLibrary.Binary;
 
 namespace BeIT.MemCached {
 	/// <summary>
@@ -112,6 +113,12 @@ namespace BeIT.MemCached {
 			stream.Flush();
 		}
 
+		internal void Write(BinaryRequest req)
+		{
+			req.Write(stream);
+			stream.Flush();
+		}
+
 		/// <summary>
 		/// Reads from the socket until the sequence '\r\n' is encountered, 
 		/// and returns everything up to but not including that sequence as a UTF8-encoded string
@@ -156,6 +163,21 @@ namespace BeIT.MemCached {
 			}
 
 			return response;
+		}
+
+		internal BinaryResponse ReadBinaryResponse()
+		{
+		    BinaryResponse response = new BinaryResponse();
+			response.Read(stream);
+			switch (response.ResponseCode) {
+				case ErrorCode.InvalidArguments:
+				case ErrorCode.InvalidIncrTarget:
+                case ErrorCode.OutOfMemory:
+                case ErrorCode.ValueTooLarge:
+                    throw new MemcachedClientException("Server returned: " + response.ValueAsString);
+                default:
+					return response;
+			}
 		}
 
 		/// <summary>
@@ -204,5 +226,6 @@ namespace BeIT.MemCached {
 			}
 			return false;
 		}
+
 	}
 }

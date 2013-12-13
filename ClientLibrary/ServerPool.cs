@@ -24,6 +24,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using BeITMemcached.ClientLibrary.Binary;
 
 namespace BeIT.MemCached {
 	internal delegate T UseSocket<T>(PooledSocket socket);
@@ -140,7 +141,7 @@ namespace BeIT.MemCached {
 			} catch(Exception e) {
 				logger.Error("Error in Execute<T>: " + pool.Host, e);
 
-				//Socket is probably broken
+				//socket is probably broken
 				if (sock != null) {
 					sock.Close();
 				}
@@ -165,7 +166,7 @@ namespace BeIT.MemCached {
 			} catch(Exception e) {
 				logger.Error("Error in Execute: " + pool.Host, e);
 
-				//Socket is probably broken
+				//socket is probably broken
 				if (sock != null) {
 					sock.Close();
 				}

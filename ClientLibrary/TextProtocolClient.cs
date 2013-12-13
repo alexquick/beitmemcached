@@ -13,7 +13,20 @@ namespace BeITMemcached.ClientLibrary
 			//no-op
 		}
 
+		public override ProtocolType Protocol { get { return ProtocolType.Text; } }
+
 		#region Set, Add, and Replace.
+
+		protected override bool store(string command, string key, bool keyIsChecked, object value, uint hash, int expiry)
+		{
+			return store(command, key, keyIsChecked, value, hash, expiry, 0).StartsWith("STORED");
+		}
+
+		//Hook for the Append and Prepend commands.
+		protected override bool store(string command, string key, bool keyIsChecked, object value, uint hash)
+		{
+			return store(command, key, keyIsChecked, value, hash, 0, 0).StartsWith("STORED");
+		}
 
 		//Private overload for the Cas command.
 		protected override CasResult store(string key, bool keyIsChecked, object value, uint hash, int expiry, ulong unique)
@@ -32,7 +45,7 @@ namespace BeITMemcached.ClientLibrary
 		}
 
 		//Private common store method.
-		protected override string store(string command, string key, bool keyIsChecked, object value, uint hash, int expiry, ulong unique)
+		private string store(string command, string key, bool keyIsChecked, object value, uint hash, int expiry, ulong unique)
 		{
 			if (!keyIsChecked) {
 				checkKey(key);
@@ -191,13 +204,12 @@ namespace BeITMemcached.ClientLibrary
 		}
 
 		//Private method for reading results of the "get" command.
-		protected override bool readValue(PooledSocket socket, out object value, out string key, out ulong unique)
+		private bool readValue(PooledSocket socket, out object value, out string key, out ulong unique)
 		{
 			string response = socket.ReadResponse();
 			string[] parts = response.Split(' '); //Result line from server: "VALUE <key> <flags> <bytes> <cas unique>"
 			if (parts[0] == "VALUE") {
 				key = parts[1];
-				SerializedType type = (SerializedType) Enum.Parse(typeof (SerializedType), parts[2]);
 				byte[] bytes = new byte[Convert.ToUInt32(parts[3], CultureInfo.InvariantCulture)];
 				if (parts.Length > 4) {
 					unique = Convert.ToUInt64(parts[4]);
@@ -207,14 +219,8 @@ namespace BeITMemcached.ClientLibrary
 				}
 				socket.Read(bytes);
 				socket.SkipUntilEndOfLine(); //Skip the trailing \r\n
-				try {
-					value = Serializer.DeSerialize(bytes, type);
-				}
-				catch (Exception e) {
-					//If deserialization fails, return null
-					value = null;
-					logger.Error("Error deserializing object for key '" + key + "' of type " + type + ".", e);
-				}
+				var type = (SerializedType)Enum.Parse(typeof (SerializedType), parts[2]);
+				value = Deserialize(key, type, bytes);
 				return true;
 			}
 			else {
