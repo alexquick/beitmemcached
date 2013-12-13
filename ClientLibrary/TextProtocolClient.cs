@@ -28,6 +28,27 @@ namespace BeITMemcached.ClientLibrary
 			return store(command, key, keyIsChecked, value, hash, 0, 0).StartsWith("STORED");
 		}
 
+		protected override bool store(string command, string[] keys, bool keyIsChecked, object[] values, uint[] hashes,
+			int expiry)
+		{
+			EnsureAlignment(keys, values, hashes);
+			bool success = true;
+			for (int i = 0; i < keys.Length; i++) {
+				success &= store(command, keys[i], keyIsChecked, values[i], hashes[i], expiry);
+			}
+			return success;
+		}
+
+		protected override bool store(string command, string[] keys, bool keyIsChecked, object[] values, uint[] hashes)
+		{
+			EnsureAlignment(keys, values, hashes);
+			bool success = true;
+			for (int i = 0; i < keys.Length; i++) {
+				success &= store(command, keys[i], keyIsChecked, values[i], hashes[i]);
+			}
+			return success;
+		}
+
 		//Private overload for the Cas command.
 		protected override CasResult store(string key, bool keyIsChecked, object value, uint hash, int expiry, ulong unique)
 		{
@@ -133,13 +154,7 @@ namespace BeITMemcached.ClientLibrary
 		/// </summary>
 		protected override object[] get(string command, string[] keys, bool keysAreChecked, uint[] hashes, out ulong[] uniques)
 		{
-			//Check arguments.
-			if (keys == null || hashes == null) {
-				throw new ArgumentException("Keys and hashes arrays must not be null.");
-			}
-			if (keys.Length != hashes.Length) {
-				throw new ArgumentException("Keys and hashes arrays must be of the same length.");
-			}
+			EnsureAlignment(keys, hashes);
 			uniques = new ulong[keys.Length];
 
 			//Avoid going through the server grouping if there's only one key.

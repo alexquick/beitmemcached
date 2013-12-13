@@ -290,6 +290,27 @@ namespace BeIT.MemCached{
 			}
 		}
 
+		internal void EnsureAlignment(string[] keys, object[] values, uint[] hashes)
+		{
+			EnsureAlignment(keys, hashes);
+			if (values == null) {
+				throw new ArgumentException("Values must not be null");
+			}
+			if (values.Length != keys.Length) {
+				throw new ArgumentException("Values must be the same length as keys");
+			}
+		}
+
+		internal void EnsureAlignment(string[] keys, uint[] hashes)
+		{
+			if (keys == null || hashes == null) {
+				throw new ArgumentException("Keys and hashes arrays must not be null.");
+			}
+			if (keys.Length != hashes.Length) {
+				throw new ArgumentException("Keys and hashes arrays must be of the same length.");
+			}
+		}
+
 		#endregion
 
 		#region Set, Add, and Replace.
@@ -306,6 +327,8 @@ namespace BeIT.MemCached{
 		public bool Set(string key, object value, uint hash, TimeSpan expiry) { return store("set", key, false, value, this.hash(hash), (int)expiry.TotalSeconds); }
 		public bool Set(string key, object value, DateTime expiry) { return store("set", key, true, value, hash(key), getUnixTime(expiry)); }
 		public bool Set(string key, object value, uint hash, DateTime expiry) { return store("set", key, false, value, this.hash(hash), getUnixTime(expiry)); }
+
+		public bool Set(string[] keys, object[] values){ return store("set", keys, true, values, hash(keys), 0); }
 
 		/// <summary>
 		/// This method corresponds to the "add" command in the memcached protocol. 
@@ -369,9 +392,11 @@ namespace BeIT.MemCached{
 
 		//Hook for the Set, Add and Replace commands.
 		protected abstract bool store(string command, string key, bool keyIsChecked, object value, uint hash, int expiry);
+		protected abstract bool store(string command, string[] keys, bool keyIsChecked, object[] values, uint[] hashes, int expiry);
 
 		//Hook for the Append and Prepend commands.
 		protected abstract bool store(string command, string key, bool keyIsChecked, object value, uint hash);
+		protected abstract bool store(string command, string[] keys, bool keyIsChecked, object[] values, uint[] hashes);
 
 		//Hook for the Cas command.
 		protected abstract CasResult store(string key, bool keyIsChecked, object value, uint hash, int expiry, ulong unique);

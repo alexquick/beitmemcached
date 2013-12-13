@@ -26,6 +26,27 @@ namespace BeITMemcached.ClientLibrary.Binary
 			return store(command, key, keyIsChecked, value, hash, 0, 0).ResponseCode == ErrorCode.None;
 		}
 
+		protected override bool store(string command, string[] keys, bool keyIsChecked, object[] values, uint[] hashes,
+			int expiry)
+		{
+			EnsureAlignment(keys, values, hashes);
+			bool success = true;
+			for (int i = 0; i < keys.Length; i++) {
+				success &= store(command, keys[i], keyIsChecked, values[i], hashes[i], expiry);
+			}
+			return success;
+		}
+
+		protected override bool store(string command, string[] keys, bool keyIsChecked, object[] values, uint[] hashes)
+		{
+			EnsureAlignment(keys, values, hashes);
+			bool success = true;
+			for (int i = 0; i < keys.Length; i++) {
+				success &= store(command, keys[i], keyIsChecked, values[i], hashes[i]);
+			}
+			return success;
+		}
+
 		protected override CasResult store(string key, bool keyIsChecked, object value, uint hash, int expiry, ulong unique)
 		{
 			throw new NotImplementedException();
@@ -139,13 +160,7 @@ namespace BeITMemcached.ClientLibrary.Binary
 		private BinaryResponse[] executeBulk(BinaryRequest quietTemplate, BinaryRequest finalRequestTemplate,
 			string[] keys, uint[] hashes)
 		{
-			//Check arguments.
-			if (keys == null || hashes == null) {
-				throw new ArgumentException("Keys and hashes arrays must not be null.");
-			}
-			if (keys.Length != hashes.Length) {
-				throw new ArgumentException("Keys and hashes arrays must be of the same length.");
-			}
+			EnsureAlignment(keys, hashes);
 
 			//Group the keys/hashes by server(pool)
 			Dictionary<SocketPool, Dictionary<string, List<int>>> dict =

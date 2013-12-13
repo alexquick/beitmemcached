@@ -36,6 +36,21 @@ namespace Test
 			CollectionAssert.AreEquivalent(new String[] {"test1_key", null, "test3_key"}, res);
 		}
 
+		[Test, TestCaseSource("Clients")]
+		public void TestBulkSet(MemcachedClient c)
+		{
+			List<String> keys = new List<string>();
+			List<object> values = new List<object>();
+
+			for (int i = 0; i < 10; i++) {
+				keys.Add("key_" + i);
+				values.Add(i);
+			}
+			c.Set(keys.ToArray(), values.ToArray());
+			var res = c.Get(keys.ToArray());
+			CollectionAssert.AreEquivalent(values, res);
+		}
+
 		public IEnumerable<TestCaseData> Clients()
 		{
 			MemcachedClient.Reset();
