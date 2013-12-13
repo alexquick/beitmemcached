@@ -1,11 +1,11 @@
-get100DNE(10)   Text:236 18/23/38       Binary:224 18/22/28
-get1000DNE(10)  Text:2092 200/209/222   Binary:2442 196/244/575
-set100DNE(10)   Text:209 18/20/25       Binary:202 18/20/23
-set1000DNE(10)  Text:2103 195/210/239   Binary:2023 197/202/206
-getm100DNE(10)  Text:5 0/0/3    Binary:15 1/1/5
-getm1000DNE(10) Text:10 1/1/1   Binary:116 11/11/12
-setm100DNE(10)  Text:198 17/19/21       Binary:11 1/1/2
-setm1000DNE(10) Text:2092 197/209/234   Binary:115 11/11/13
+get100DNE(10)           Text:236 18/23/38       Binary:224 18/22/28
+get1000DNE(10)          Text:2092 200/209/222   Binary:2442 196/244/575
+set100DNE(10)           Text:209 18/20/25       Binary:202 18/20/23
+set1000DNE(10)          Text:2103 195/210/239   Binary:2023 197/202/206
+getm100DNE(10)          Text:5 0/0/3            Binary:15 1/1/5
+getm1000DNE(10)         Text:10 1/1/1           Binary:116 11/11/12
+setm100DNE(10)          Text:198 17/19/21       Binary:11 1/1/2
+setm1000DNE(10)         Text:2092 197/209/234   Binary:115 11/11/13
 setmandget100(10)       Text:221 18/22/28       Binary:73 4/7/13
 setmandget1000(10)      Text:2129 207/212/225   Binary:343 25/34/43
 
